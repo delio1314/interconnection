@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>终端登录</title>
+    <script src="/javascripts/jquery-1.11.0.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/myjs/utils.js"></script>
+    <script src="/myjs/config.js"></script>
+    <script src="/myjs/events.js"></script>
+</head>
+
+<body>
+    <h1>Interconnection测试</h1>
+    </br>
+    <div id="div_login">
+        <input id="input_id" type="text" placeholder="输入id" />
+        <input type="button" value="登录" onclick="login()" />
+    </div>
+    <div id="div_uuid">
+        用户:
+        <span id="uuid"></span>
+    </div>
+    </br>
+    <div id="div_on">
+        <span>登录时长：
+            <span id="time"></span>
+        </span>
+    </div>
+    </br>
+    <div id="div_channel">
+        <span>已订阅频道：</span>
+        </br>
+        <textarea id="channels" cols="50" rows="10" , readonly></textarea>
+        </br>
+        <input id="channelSpace" type="text" placeholder="输入频道空间" />
+        <input id="channelName" type="text" placeholder="输入频道名称" />
+        <input id="subscribe" type="button" value="订阅" onclick="subscribe()" />&nbsp;&nbsp;
+        <input id="unsubscribe" type="button" value="取消订阅" onclick="unsubscribe()" />
+    </div>
+    </br>
+    <div id="div_sendMessage">
+        <span>发送消息：</span>
+        </br>
+        <input id="pubChannelSpace" type="text" placeholder="输入频道空间" />
+        <input id="pubChannelName" type="text" placeholder="输入频道名称" />
+        </br>
+        <textarea id="message" placeholder="输入消息" cols="30"></textarea>
+        <input id="publish" type="button" value="发送消息" onclick="publish()" />
+    </div>
+    </br>
+    <div id="div_recvMessage">
+        <span>消息：</span>
+        </br>
+        <textarea id="messages" cols="100" rows="20"></textarea>
+    </div>
+
+</body>
+
+<script type="text/javascript">
+var naClient;
+var channelArray = new Array();
+
+$(function() {
+    $("#div_uuid").hide();
+    $("#div_on").hide();
+    $("#div_channel").hide();
+    $("#div_sendMessage").hide();
+    $("#div_recvMessage").hide();
+});
+
+function login() {
+    var uuid = $("#input_id").val();
+    init(uuid, function(error, client) {
+        // console.log(client);
+        if (error) {
+            alert(error);
+            window.location.reload();
+        } else {
+            naClient = client;
+
+            client.onMessage(function(data) {
+                console.log(data);
+                var notice = "[收到消息，发送者：" + data.uuid + "，频道空间：" + data.channelSpace + "，频道名称：" + data.channelName + "]：" + data.msg;
+                $("#messages").append(notice + "\n");
+                // $("#messages").append(data + "\n");
+            });
+
+            $("#uuid").html(uuid);
+            $("#div_uuid").show();
+
+            $("#div_on").show();
+
+            client.where_now(function(err, channels) {
+                // console.log(channels);
+                if (err == "success") {
+                    // console.log(channels.length);
+                    // console.log(channels);
+                    for (var index = 0; index < channels.length; index++) {
+                        channelArray[index] = channels[index];
+                        $("#channels").append(channels[index] + "\n");
+                    }
+                }
+                // console.log("array:" + channelArray);
+                $("#div_channel").show();
+            });
+
+            $("#div_sendMessage").show();
+            $("#div_recvMessage").show();
+
+            $("#div_login").hide();
+        }
+    });
+}
+
+function subscribe() {
+    var channelSpace = $("#channelSpace").val();
+    var channelName = $("#channelName").val();
+    if (channelSpace == null || channelSpace == "") {
+        alert("empty channelSpace");
+    } else if (channelName == null || channelName == "") {
+        alert("empty channelName");
+    } else if (naClient == null || naClient == "undefined") {
+        alert("not online");
+    } else {
+        // console.log(channelSpace);
+        // console.log(channelName);
+        var channel = channelSpace + "." + channelName;
+        naClient.subscribe(channelSpace, channelName, function(status) {
+            if (status == "success") {
+                $("#channels").append(channel + "\n");
+                channelArray[channelArray.length] = channel;
+                // console.log(channel);
+            } else {
+                alert(status);
+            }
+        });
+    }
+    $("#channelSpace").val("");
+    $("#channelName").val("");
+}
+
+
+function unsubscribe() {
+    var channelSpace = $("#channelSpace").val();
+    var channelName = $("#channelName").val();
+    if (channelSpace == null || channelSpace == "") {
+        alert("empty channelSpace");
+    } else if (channelName == null || channelName == "") {
+        alert("empty channelName");
+    } else if (naClient == null || naClient == "undefined") {
+        alert("not online");
+    } else {
+        naClient.unsubscribe(channelSpace, channelName, function(status) {
+            if (status == "success") {
+                var index = channelArray.indexOf(channelSpace + "." + channelName);
+                channelArray.splice(index, 1);
+                $("#channels").html('');
+                // console.log("array:" + channelArray);
+                for (var itemIndex = 0; itemIndex < channelArray.length; itemIndex++) {
+                    // console.log(channelArray[itemIndex]);
+                    // console.log(itemIndex);
+                    $("#channels").append(channelArray[itemIndex] + "\n");
+                }
+            } else {
+                alert(status);
+            }
+        });
+    }
+    $("#channelSpace").val("");
+    $("#channelName").val("");
+}
+
+function publish() {
+    var channelSpace = $("#pubChannelSpace").val();
+    var channelName = $("#pubChannelName").val();
+    var msg = $("#message").val();
+    if (channelSpace == null || channelSpace == "") {
+        alert("empty channelSpace");
+    } else if (channelName == null || channelName == "") {
+        alert("empty channelName");
+    } else if (msg == null || msg == "") {
+        alert("empty message");
+    } else if (naClient == null || naClient == "undefined") {
+        alert("not online");
+    } else {
+        naClient.publish(channelSpace, channelName, msg, "test", "text", function(status) {
+            if (status == "success") {
+                var notice = "[发送消息，频道空间：" + channelSpace + "，频道名称：" + channelName + "]：" + msg;
+                $("#messages").append(notice + "\n");
+            }
+        });
+    }
+}
+</script>
+
+</html>
